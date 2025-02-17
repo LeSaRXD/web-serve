@@ -1,4 +1,9 @@
-use std::{env, fs::read_to_string, net::SocketAddr, path::PathBuf};
+use std::{
+	env,
+	fs::{self, read_to_string},
+	net::SocketAddr,
+	path::PathBuf,
+};
 
 use axum::{
 	extract::Path as PathExt,
@@ -18,8 +23,9 @@ async fn main() {
 		.unwrap_or(8080);
 
 	let router = Router::new()
-		.route("/{*path}", get(handler))
-		.route("/", get(root));
+		.route("/", get(root))
+		.route("/favicon.ico", get(favicon))
+		.route("/{*path}", get(handler));
 	let listener = TcpListener::bind(SocketAddr::from(([0u8, 0, 0, 0], port)))
 		.await
 		.unwrap();
@@ -30,6 +36,23 @@ async fn main() {
 
 async fn root() -> &'static str {
 	"Hello from web-serve!"
+}
+
+async fn favicon() -> Result<impl IntoResponse, impl IntoResponse> {
+	match fs::read("favicon.ico") {
+		Ok(bytes) => Ok((
+			StatusCode::OK,
+			[(header::CONTENT_TYPE, "image/x-icon")],
+			bytes,
+		)),
+		Err(_) => Err(const {
+			(
+				StatusCode::OK,
+				[(header::CONTENT_TYPE, "image/x-icon")],
+				include_bytes!("favicon.ico"),
+			)
+		}),
+	}
 }
 
 async fn handler(PathExt(path): PathExt<PathBuf>) -> Result<impl IntoResponse, impl IntoResponse> {
