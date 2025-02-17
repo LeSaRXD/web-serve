@@ -20,18 +20,30 @@ async fn main() {
 		.nth(1)
 		.and_then(|s| s.parse().ok())
 		.or_else(|| env::var("SERVE_PORT").ok()?.parse().ok())
-		.unwrap_or(8080);
+		.unwrap_or(0);
 
 	let router = Router::new()
 		.route("/", get(root))
 		.route("/favicon.ico", get(favicon))
 		.route("/{*path}", get(handler));
-	let listener = TcpListener::bind(SocketAddr::from(([0u8, 0, 0, 0], port)))
-		.await
-		.unwrap();
+	let listener = match TcpListener::bind(SocketAddr::from(([0u8, 0, 0, 0], port))).await {
+		Ok(l) => l,
+		Err(e) => {
+			eprintln!("Unable to bind to 0.0.0.0:{port}: {e}");
+			return;
+		}
+	};
 
-	println!("Server listening on port {port}");
-	axum::serve(listener, router).await.unwrap();
+	println!(
+		"Server listening: http://127.0.0.1:{}/",
+		listener
+			.local_addr()
+			.expect("Expected a local address")
+			.port()
+	);
+	if let Err(e) = axum::serve(listener, router).await {
+		eprintln!("Could not start axum server: {e}");
+	}
 }
 
 async fn root() -> &'static str {
